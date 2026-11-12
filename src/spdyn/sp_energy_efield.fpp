@@ -79,7 +79,7 @@ contains
     ! calculate electric field energy
     !
     !$omp parallel default(shared)                      &
-    !$omp private(id, i, ix, efield_temp, work)
+    !$omp private(id, i, ix, efield_temp, work, viri)
     !
 #ifdef OMP
     id  = omp_get_thread_num()
