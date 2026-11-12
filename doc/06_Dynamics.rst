@@ -149,6 +149,18 @@ For details, see :ref:`ensemble`.
   in the "dcdfile" specified in the **[OUTPUT]** section
   every **crdout_period** steps during the simulation.
 
+**eleout_period** *Integer* (SPDYN standard MD only)
+
+  **Default : 0**
+
+  Output the instantaneous electrostatic potential on the native PME grid
+  every specified number of steps to ``elefile`` in **[OUTPUT]**. Zero
+  disables the output, negative values are invalid, and step zero is not
+  written. With VRES, this period and ``nsteps`` must be multiples of
+  ``elec_long_period`` because snapshots are taken at outer integration
+  steps. See :ref:`output` for the potential definition, units, metadata,
+  supported simulations, and restart convention.
+
 **velout_period** *Integer*
 
   **Default : 0**

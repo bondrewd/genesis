@@ -55,6 +55,85 @@ General output files
 
   Filename for the restart PDB file. This file is updated every ``rstout_period`` steps.
 
+**elefile** (SPDYN standard MD only)
+
+  CSV filename for instantaneous electrostatic potential maps. Enable it with
+  a positive ``eleout_period`` in **[DYNAMICS]**. The filename must not already
+  exist; use a new filename for each restarted run. No file is opened when
+  both options are omitted. Specifying only one option is an error.
+
+  This output supports VVER and VRES with standard point-charge PME force
+  fields, including NVT and NPT. Minimization, REMD, bias/RPATH, alchemical
+  simulations, and SPICA/pSPICA electrostatics are rejected. It does not
+  enable electrostatic output in ATDYN or CGDYN.
+
+  Parallel-I/O restart input supports zero-field maps. A requested nonzero
+  field with this output is rejected on that input path because the existing
+  parallel-I/O setup does not apply external fields. Use ordinary input or
+  restart files for simulations with an applied field.
+
+  Each selected positive step contains every point of the actual PME grid
+  selected by the FFT backend, with no duplicate periodic endpoints::
+
+    step,time,x,y,z,charge_potential,external_potential,total_potential
+
+  Time is in ps, coordinates in Angstrom, and potentials in volts. Step and
+  time match the engine's run-local values; restarted runs reset this
+  chronology. The ``initial_time`` setting is recorded separately.
+
+  ``charge_potential`` is the Gaussian-smoothed reciprocal Ewald potential
+  of all atomic charges, as in VMD PMEPot. It includes the instantaneous
+  ionic and solvent response. It omits the direct-space term, intramolecular
+  exclusions, and atom self-energy subtraction. The zero wavevector is
+  omitted, corresponding to a uniform neutralizing background for a charged
+  cell, and the spatial mean is zero. The Ewald factor controls smoothing;
+  finite B-spline/grid errors should be checked by grid refinement.
+
+  ``external_potential`` is ``-dot(effective_field,position-cell_center)``.
+  The effective field includes ``efield_normal`` box scaling and the legacy
+  field-force conversion factor 23.06 divided by the SI conversion from eV
+  to kcal/mol. The latter is computed from the elementary charge, Avogadro
+  constant, and thermochemical calorie. ``total_potential`` is the sum.
+  The external reference at the cell center differs from the legacy
+  external-energy routine's reference by a spatially constant offset.
+  Potential differences and fields are unaffected by that gauge choice.
+
+  Fixed metadata is written once in ``#key=value`` comments: units,
+  potential/reference definitions, numerical precision, Ewald factor,
+  dielectric constant, Coulomb prefactor, spline order, configured field,
+  and conversion factors. Each ``#frame_step`` block records the current
+  grid dimensions, grid origin/spacing, cell vectors, reference position,
+  effective field, and net charge. Rows are ordered with x outermost and z
+  innermost. Skip comment lines when reading the CSV.
+
+  Arithmetic follows the build precision: mixed and single builds compute
+  this map in single precision, while double builds use double precision.
+  The printed digits preserve the stored values; they do not imply greater
+  accuracy. Use double precision and check spatial/sampling convergence for
+  demanding quantitative comparisons.
+
+  Coordinates use the input-coordinate frame. For axis length L and native
+  grid count N, the first point is ``cell_center-floor(N/2)*L/N``. Thus an
+  odd grid starts half a spacing above the geometric lower cell boundary.
+  DCD coordinates use the internally centered frame; add the recorded
+  external reference position when comparing a DCD with the CSV.
+
+  The calculation uses separate analysis arrays and does not change forces
+  or advance the random-number generator. It gathers atoms and computes a
+  serial FFT on the main rank, with memory and time costs proportional to
+  the grid size and atom count. CSV files can be large. Average equilibrated
+  frames and extract slices/profiles during analysis. Interpolate the
+  periodic charge potential before adding the analytic external ramp;
+  the total potential is not periodic across the applied voltage jump.
+
+  Example::
+
+    [OUTPUT]
+    elefile = potential.csv
+
+    [DYNAMICS]
+    eleout_period = 1000
+
 
 Output files in REMD and RPATH simulations
 =====================================================================

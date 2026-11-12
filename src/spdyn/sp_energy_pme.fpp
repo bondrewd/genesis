@@ -44,6 +44,7 @@ module sp_energy_pme_mod
 
   ! subroutines
   public  :: setup_pme
+  public  :: get_pme_grid
   public  :: dealloc_pme
   public  :: pme_pre
   public  :: pme_pre_lj
@@ -52,6 +53,35 @@ module sp_energy_pme_mod
   private :: select_pme_scheme
 
 contains
+
+  ! Return the grid actually selected and rounded by the active FFT backend.
+  subroutine get_pme_grid(domain, grid)
+    type(s_domain), intent(in) :: domain
+    integer,        intent(out) :: grid(3)
+
+    if (domain%nonbond_kernel == NBK_Spica) then
+      call get_pme_grid_spica(grid)
+      return
+    end if
+
+    select case (pme_scheme)
+    case (FFT_opt_1dalltoall)
+      call get_pme_grid_opt_1dalltoall(grid)
+    case (FFT_noopt_1dalltoall)
+      call get_pme_grid_noopt_1dalltoall(grid)
+    case (FFT_opt_2dalltoall)
+      call get_pme_grid_opt_2dalltoall(grid)
+    case (FFT_noopt_2dalltoall)
+      call get_pme_grid_noopt_2dalltoall(grid)
+    case (FFT_opt_slab)
+      call get_pme_grid_opt_slab(grid)
+    case (FFT_noopt_slab)
+      call get_pme_grid_noopt_slab(grid)
+    case default
+      call error_msg('Get_Pme_Grid> no active PME backend.')
+    end select
+  end subroutine get_pme_grid
+
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !

@@ -16,6 +16,7 @@
 module sp_output_mod
 
   use sp_dynvars_mod
+  use sp_electrostatic_output_mod
   use sp_parallel_io_mod
   use sp_output_str_mod
   use sp_minimize_str_mod
@@ -68,6 +69,7 @@ module sp_output_mod
     character(MaxFilename) :: abmdfile   = ''
     character(MaxFilename) :: splinefile = ''
     character(MaxFilename) :: fepfile    = ''
+    character(MaxFilename) :: elefile    = ''
   end type s_out_info
 
   ! valiables
@@ -146,6 +148,7 @@ contains
         write(MsgOut,'(A)') '# abmdfile   = sample.abmd   # abmd file'
         write(MsgOut,'(A)') '# splinefile = sample.spl    # spline file'        
         write(MsgOut,'(A)') '# fepfile    = sample.fepout # fep file'
+        write(MsgOut,'(A)') '# elefile    = sample.csv   # electrostatic potential grid (MD only)'
         write(MsgOut,'(A)') ' '
 
       case ('min')
@@ -245,6 +248,7 @@ contains
     call read_ctrlfile_string(handle, Section, 'abmdfile',  out_info%abmdfile)
     call read_ctrlfile_string(handle, Section, 'splinefile',  out_info%splinefile)  
     call read_ctrlfile_string(handle, Section, 'fepfile',   out_info%fepfile)
+    call read_ctrlfile_string(handle, Section, 'elefile',   out_info%elefile)
 
     call end_ctrlfile_section(handle)
 
@@ -285,6 +289,8 @@ contains
         write(MsgOut,*) ' splinefile   = ', trim(out_info%splinefile)          
       if (out_info%fepfile /= '') &
         write(MsgOut,*) ' fepfile    = ', trim(out_info%fepfile)
+      if (out_info%elefile /= '') &
+        write(MsgOut,*) ' elefile    = ', trim(out_info%elefile)
       write(MsgOut,'(A)') ' '
     end if
 
@@ -303,15 +309,41 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine setup_output_md(out_info, dynamics, output)
+  subroutine setup_output_md(out_info, dynamics, output, enefunc, domain)
 
     ! formal arguments
     type(s_out_info),        intent(in)    :: out_info
     type(s_dynamics),        intent(in)    :: dynamics
     type(s_output),          intent(inout) :: output
+    type(s_enefunc),         intent(in)    :: enefunc
+    type(s_domain),          intent(in)    :: domain
 
 
     output%verbose = dynamics%verbose
+
+    if (dynamics%eleout_period > 0) then
+      if (out_info%elefile == '') &
+        call error_msg('Setup_Output_Md> elefile must be specified when '//&
+                       'eleout_period > 0.')
+      if (.not. enefunc%pme_use) &
+        call error_msg('Setup_Output_Md> electrostatic output requires PME.')
+      if (domain%fep_use) &
+        call error_msg('Setup_Output_Md> electrostatic output is not '//&
+                       'supported for alchemical simulations.')
+      if (domain%nonbond_kernel == NBK_Spica .or. &
+          domain%nonbond_kernel == NBK_PSpica) &
+        call error_msg('Setup_Output_Md> electrostatic output requires '//&
+                       'a standard point-charge PME force field.')
+      if (dynamics%integrator /= IntegratorVVER .and. &
+          dynamics%integrator /= IntegratorVRES) &
+        call error_msg('Setup_Output_Md> electrostatic output requires '//&
+                       'VVER or VRES.')
+      output%eleout = .true.
+      output%elefile = out_info%elefile
+    else if (out_info%elefile /= '') then
+      call error_msg('Setup_Output_Md> eleout_period must be positive '//&
+                     'when elefile is specified.')
+    end if
 
     output%replica = .false.
     output%rpath   = .false.
@@ -393,6 +425,10 @@ contains
     type(s_output),          intent(inout) :: output
 
 
+    if (out_info%elefile /= '') &
+      call error_msg('Setup_Output_Min> electrostatic output is '//&
+                     'supported only for standard MD.')
+
     output%verbose    = minimize%verbose
 
     output%replica    = .false.
@@ -444,6 +480,10 @@ contains
     type(s_remd),            intent(in)    :: remd     
     type(s_output),          intent(inout) :: output
 
+
+    if (out_info%elefile /= '' .or. dynamics%eleout_period > 0) &
+      call error_msg('Setup_Output_Remd> electrostatic output is '//&
+                     'supported only for standard MD.')
 
     output%verbose = dynamics%verbose
 
@@ -586,6 +626,10 @@ contains
     ! local variables
     logical                                :: biasflag = .true.
 
+    if (out_info%elefile /= '' .or. dynamics%eleout_period > 0) &
+      call error_msg('Setup_Output_Bias> electrostatic output is '//&
+                     'supported only for standard MD.')
+
     output%verbose = dynamics%verbose
 
     output%logfile = out_info%logfile
@@ -686,6 +730,10 @@ contains
     type(s_output),          intent(inout) :: output
 
 
+    if (out_info%elefile /= '' .or. dynamics%eleout_period > 0) &
+      call error_msg('Setup_Output_Rpath> electrostatic output is '//&
+                     'supported only for standard MD.')
+
     output%verbose = dynamics%verbose
 
     output%logfile = out_info%logfile
@@ -776,6 +824,8 @@ contains
     ! local variables
     integer                  :: file
 
+
+    if (output%eleout) call open_electrostatic_output(output)
 
     ! open logfile 
     !
@@ -977,6 +1027,8 @@ contains
     type(s_output),          intent(in)    :: output
 
 
+    if (output%eleout) call close_electrostatic_output(output)
+
     ! close remfile
     !
     if (output%remout) &
@@ -1063,6 +1115,12 @@ contains
     gamma_t      =  ensemble%gamma_t*AKMA_PS
     dt           =  dynamics%timestep/AKMA_PS
     istep        =  dynvars%step
+
+    if (output%eleout .and. istep > 0) then
+      if (mod(istep,dynamics%eleout_period) == 0) &
+        call output_electrostatic(output, dynamics, boundary, dynvars, &
+                                  domain, enefunc)
+    end if
 
     ! Output coordinates (Wrap_all is not done)
     !

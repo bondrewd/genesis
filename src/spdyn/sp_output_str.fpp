@@ -37,6 +37,7 @@ module sp_output_str_mod
     integer                :: abmdunit
     integer                :: splineunit    
     integer                :: fepunit
+    integer                :: eleunit = 0
 
     character(MaxFilename) :: logfile
     character(MaxFilename) :: dcdfile
@@ -53,12 +54,15 @@ module sp_output_str_mod
     character(MaxFilename) :: abmdfile
     character(MaxFilename) :: splinefile    
     character(MaxFilename) :: fepfile
+    character(MaxFilename) :: elefile
 
+    logical                :: out_ele_header    = .true.
     logical                :: out_dcd_header    = .true.
     logical                :: out_dcdvel_header = .true.
     logical                :: out_abmd_header   = .true.
     logical                :: out_spline_header = .true.    
 
+    logical                :: eleout     = .false.
     logical                :: logout     = .false.
     logical                :: dcdout     = .false.
     logical                :: dcdvelout  = .false.

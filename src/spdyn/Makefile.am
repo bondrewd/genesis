@@ -107,6 +107,8 @@ spdyn_SOURCES = \
 	sp_assign_velocity.fpp \
 	sp_update_domain.fpp \
 	sp_input.fpp \
+	sp_electrostatic.fpp \
+	sp_electrostatic_output.fpp \
 	sp_output.fpp \
 	sp_md_leapfrog.fpp \
 	sp_md_vverlet.fpp \
@@ -227,6 +229,8 @@ prst_setup_SOURCES = \
 	sp_assign_velocity.fpp \
 	sp_update_domain.fpp \
 	sp_input.fpp \
+	sp_electrostatic.fpp \
+	sp_electrostatic_output.fpp \
 	sp_output.fpp \
 	sp_md_leapfrog.fpp \
 	sp_md_vverlet.fpp \

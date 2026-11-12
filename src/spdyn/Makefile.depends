@@ -197,7 +197,7 @@ sp_minimize.o: sp_minimize.fpp sp_constraints_str_mod.mod sp_constraints_mod.mod
 sp_minimize_mod.mod: sp_minimize.fpp sp_minimize.o
 sp_minimize_str.o: sp_minimize_str.fpp  
 sp_minimize_str_mod.mod: sp_minimize_str.fpp sp_minimize_str.o
-sp_output.o: sp_output.fpp sp_constraints_str_mod.mod sp_grest_energy_mod.mod sp_constraints_mod.mod sp_alchemy_str_mod.mod sp_domain_str_mod.mod sp_enefunc_str_mod.mod sp_bias_str_mod.mod sp_dynamics_str_mod.mod sp_remd_str_mod.mod sp_pairlist_str_mod.mod sp_boundary_str_mod.mod sp_dynvars_str_mod.mod sp_rpath_str_mod.mod sp_dynvars_mod.mod sp_output_str_mod.mod sp_minimize_str_mod.mod sp_ensemble_str_mod.mod sp_parallel_io_mod.mod 
+sp_output.o: sp_output.fpp sp_electrostatic_output_mod.mod sp_constraints_str_mod.mod sp_grest_energy_mod.mod sp_constraints_mod.mod sp_alchemy_str_mod.mod sp_domain_str_mod.mod sp_enefunc_str_mod.mod sp_bias_str_mod.mod sp_dynamics_str_mod.mod sp_remd_str_mod.mod sp_pairlist_str_mod.mod sp_boundary_str_mod.mod sp_dynvars_str_mod.mod sp_rpath_str_mod.mod sp_dynvars_mod.mod sp_output_str_mod.mod sp_minimize_str_mod.mod sp_ensemble_str_mod.mod sp_parallel_io_mod.mod
 sp_output_mod.mod: sp_output.fpp sp_output.o
 sp_output_str.o: sp_output_str.fpp  
 sp_output_str_mod.mod: sp_output_str.fpp sp_output_str.o
@@ -242,3 +242,8 @@ sp_setup_spdyn_mod.mod: sp_setup_spdyn.fpp sp_setup_spdyn.o
 sp_update_domain.o: sp_update_domain.fpp sp_migration_mod.mod sp_domain_str_mod.mod sp_constraints_str_mod.mod sp_boundary_str_mod.mod sp_pairlist_mod.mod sp_enefunc_mod.mod sp_pairlist_str_mod.mod sp_enefunc_str_mod.mod sp_pairlist_spica_mod.mod sp_minimize_str_mod.mod sp_domain_mod.mod sp_communicate_mod.mod sp_dynamics_str_mod.mod 
 sp_update_domain_mod.mod: sp_update_domain.fpp sp_update_domain.o
 spdyn.o: spdyn.fpp sp_constraints_str_mod.mod sp_alchemy_str_mod.mod sp_md_leapfrog_mod.mod sp_communicate_mod.mod sp_dynamics_mod.mod sp_domain_str_mod.mod sp_remd_mod.mod sp_md_vverlet_mod.mod sp_setup_mpi_mod.mod sp_enefunc_str_mod.mod sp_energy_pme_mod.mod sp_bias_str_mod.mod sp_dynamics_str_mod.mod sp_bias_mod.mod sp_control_mod.mod sp_energy_mod.mod sp_remd_str_mod.mod sp_pairlist_str_mod.mod sp_minimize_mod.mod sp_setup_spdyn_mod.mod sp_rpath_mod.mod sp_boundary_str_mod.mod sp_dynvars_str_mod.mod sp_rpath_str_mod.mod sp_output_str_mod.mod sp_minimize_str_mod.mod sp_ensemble_str_mod.mod 
+
+sp_electrostatic.o: sp_electrostatic.fpp
+sp_electrostatic_mod.mod: sp_electrostatic.fpp sp_electrostatic.o
+sp_electrostatic_output.o: sp_electrostatic_output.fpp sp_electrostatic_mod.mod sp_energy_pme_mod.mod sp_output_str_mod.mod sp_dynamics_str_mod.mod sp_boundary_str_mod.mod sp_dynvars_str_mod.mod sp_domain_str_mod.mod sp_enefunc_str_mod.mod
+sp_electrostatic_output_mod.mod: sp_electrostatic_output.fpp sp_electrostatic_output.o

@@ -366,7 +366,7 @@ contains
 
     ! set output
     !
-    call setup_output_md(ctrl_data%out_info, dynamics, output)
+    call setup_output_md(ctrl_data%out_info, dynamics, output, enefunc, domain)
 
 
     ! restart other variables
@@ -1591,7 +1591,17 @@ contains
 
     ! set output
     !
-    call setup_output_md(ctrl_data%out_info, dynamics, output)
+    ! Parallel-I/O setup currently does not propagate external-field
+    ! parameters. Never silently export an unbiased map for a requested
+    ! field; retain existing dynamics when this output is disabled.
+    if (dynamics%eleout_period > 0 .and. &
+        any([ctrl_data%ene_info%efield_x, &
+             ctrl_data%ene_info%efield_y, &
+             ctrl_data%ene_info%efield_z] /= 0.0_wp)) &
+      call error_msg('Setup_Spdyn_Md_Pio> electrostatic output with an '//&
+                     'external field requires ordinary input/restart files; '//&
+                     'parallel-I/O setup does not apply external fields.')
+    call setup_output_md(ctrl_data%out_info, dynamics, output, enefunc, domain)
 
     ! change step number
     !

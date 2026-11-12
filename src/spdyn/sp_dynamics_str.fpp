@@ -32,6 +32,7 @@ module sp_dynamics_str_mod
     integer             :: velout_period
     integer             :: eneout_period
     integer             :: rstout_period
+    integer             :: eleout_period
     integer             :: stoptr_period
     integer             :: nbupdate_period
     integer             :: elec_long_period
@@ -113,6 +114,7 @@ contains
     dynamics%velout_period        = 0
     dynamics%eneout_period        = 0
     dynamics%rstout_period        = 0
+    dynamics%eleout_period        = 0
     dynamics%stoptr_period        = 0
     dynamics%nbupdate_period      = 0
     dynamics%elec_long_period     = 0

@@ -113,7 +113,14 @@ module sp_energy_pme_noopt_slab_mod
   public  :: pme_pre_noopt_slab
   public  :: pme_recip_noopt_slab
 
+  public :: get_pme_grid_noopt_slab
+
 contains
+
+  subroutine get_pme_grid_noopt_slab(grid)
+    integer, intent(out) :: grid(3)
+    grid = ngrid(1:3)
+  end subroutine get_pme_grid_noopt_slab
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !

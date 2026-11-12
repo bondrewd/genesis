@@ -60,6 +60,7 @@ module sp_dynamics_mod
     integer          :: crdout_period    =      0
     integer          :: velout_period    =      0
     integer          :: rstout_period    =      0
+    integer          :: eleout_period    =      0
     integer          :: stoptr_period    =     10
     integer          :: nbupdate_period  =     10
     integer          :: elec_long_period =      1
@@ -136,6 +137,7 @@ contains
         write(MsgOut,'(A)') '# crdout_period = 0         # coordinates output period'
         write(MsgOut,'(A)') '# velout_period = 0         # velocities output period'
         write(MsgOut,'(A)') '# rstout_period = 0         # restart output period'
+        write(MsgOut,'(A)') '# eleout_period = 0         # electrostatic grid output period'
         write(MsgOut,'(A)') '# stoptr_period = 10         # remove translational and rotational motions period'
         write(MsgOut,'(A)') '# nbupdate_period = 10      # nonbond update period'
         write(MsgOut,'(A)') '# iseed         = -1        # random number seed '
@@ -219,6 +221,8 @@ contains
                                dyn_info%velout_period)
     call read_ctrlfile_integer(handle, Section, 'rstout_period', &
                                dyn_info%rstout_period)
+    call read_ctrlfile_integer(handle, Section, 'eleout_period', &
+                               dyn_info%eleout_period)
     call read_ctrlfile_integer(handle, Section, 'stoptr_period', &
                                dyn_info%stoptr_period)
     call read_ctrlfile_integer(handle, Section, 'nbupdate_period', &
@@ -278,6 +282,8 @@ contains
       write(MsgOut,'(A20,F10.4,A20,F10.4)')                      &
             '  timestep        = ', dyn_info%timestep,           &
             '  initial_time    = ', dyn_info%initial_time
+      write(MsgOut,'(A20,I10)') &
+            '  eleout_period   = ', dyn_info%eleout_period
       write(MsgOut,'(A20,I10,A20,I10)')                          &
             '  eneout_period   = ', dyn_info%eneout_period,      &
             '  rstout_period   = ', dyn_info%rstout_period
@@ -388,6 +394,19 @@ contains
       
     ! error check
     !
+    if (dyn_info%eleout_period < 0) &
+      call error_msg('Read_Ctrl_Dynamics> eleout_period must be nonnegative.')
+    if (dyn_info%eleout_period > 0 .and. &
+        dyn_info%integrator == IntegratorVRES) then
+      if (dyn_info%elec_long_period <= 0) &
+        call error_msg('Read_Ctrl_Dynamics> elec_long_period must be positive.')
+      if (mod(dyn_info%eleout_period,dyn_info%elec_long_period) /= 0) &
+        call error_msg('Read_Ctrl_Dynamics> eleout_period must be a multiple '//&
+                       'of elec_long_period for VRES.')
+      if (mod(dyn_info%nsteps,dyn_info%elec_long_period) /= 0) &
+        call error_msg('Read_Ctrl_Dynamics> nsteps must be a multiple '//&
+                       'of elec_long_period for electrostatic output with VRES.')
+    end if
     if (dyn_info%crdout_period > 0) then
       if (mod(dyn_info%nsteps, dyn_info%crdout_period) /= 0) then
         call error_msg( &
@@ -519,6 +538,7 @@ contains
     dynamics%velout_period     = dyn_info%velout_period
     dynamics%eneout_period     = dyn_info%eneout_period
     dynamics%rstout_period     = dyn_info%rstout_period
+    dynamics%eleout_period     = dyn_info%eleout_period
     dynamics%stoptr_period     = dyn_info%stoptr_period
     dynamics%nbupdate_period   = dyn_info%nbupdate_period
     dynamics%elec_long_period  = dyn_info%elec_long_period
@@ -666,6 +686,7 @@ contains
     dynamics%velout_period     = dyn_info%velout_period
     dynamics%eneout_period     = dyn_info%eneout_period
     dynamics%rstout_period     = dyn_info%rstout_period
+    dynamics%eleout_period     = dyn_info%eleout_period
     dynamics%stoptr_period     = dyn_info%stoptr_period
     dynamics%nbupdate_period   = dyn_info%nbupdate_period
     dynamics%elec_long_period  = dyn_info%elec_long_period

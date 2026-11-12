@@ -126,7 +126,14 @@ module sp_energy_pme_opt_2dalltoall_mod
   public  :: pme_recip_opt_2dalltoall_8
 ! public  :: pme_recip_opt_2dalltoall_lj_8
 
+  public :: get_pme_grid_opt_2dalltoall
+
 contains
+
+  subroutine get_pme_grid_opt_2dalltoall(grid)
+    integer, intent(out) :: grid(3)
+    grid = ngrid(1:3)
+  end subroutine get_pme_grid_opt_2dalltoall
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
