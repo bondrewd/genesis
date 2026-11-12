@@ -9,13 +9,15 @@ Optional --baseline /path/to/unchanged/spdyn adds an independent control run.
 import argparse
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import tempfile
 
 import numpy as np
 
-from test_ele_output import dcd_numeric_records, read_csv
+from test_ele_output import dcd_numeric_records, read_csv, frame_geometry, logged_state
+from test_ele_solver import KCAL_PER_MOL_PER_EV
 
 
 def main():
@@ -77,19 +79,31 @@ def main():
             assert all(lines == energies[0] for lines in energies), name
             assert all(records == trajectories[0] for records in trajectories), name
             fixed, frames, data = read_csv(enabled/'potential.csv')
-            assert len(frames) == 1 and int(frames[0]['frame_step']) == 20
-            frame = frames[0]
+            assert len(frames) == 1 and np.all(frames[0][:,0] == 20)
             assert np.isfinite(data).all()
             assert np.max(np.abs(data[:, 7]-data[:, 5]-data[:, 6])) < 2.e-14
             assert abs(data[:, 5].mean()) < 1.e-12
-            cell = np.array([np.fromstring(frame['cell_vector_'+a], sep=',') for a in 'abc'])
-            volume = np.prod(cell.diagonal())
-            header = energies[0][0].split()[1:]
-            logged_volume = float(energies[0][-1].split()[1+header.index('VOLUME')])
-            assert abs(volume-logged_volume) < .001
-            field = np.fromstring(frame['effective_field'], sep=',')
-            center = np.fromstring(frame['external_reference_position'], sep=',')
-            assert np.max(np.abs(data[:, 6]+(data[:, 2:5]-center)@field)) < 2.e-14
+            grid, corner, spacing, box = frame_geometry(data)
+            state = logged_state((enabled/'run.log').read_text(), 20)
+            assert abs(np.prod(box)-state['VOLUME']) < .001
+            assert np.max(np.abs(box - [state['BOXX'], state['BOXY'], state['BOXZ']])) < 5.1e-5
+            assert grid == ((48,48,48) if name.startswith('nano_material') else (72,72,72))
+            initial_box = np.array([state['BOXX'],state['BOXY'],state['BOXZ']])
+            if normalized:
+                # The restart carries the actual initial box (not rounded
+                # input lengths); INFO's first VRES state is step 2, so use
+                # the explicit restart summary in the independently read log.
+                start = re.search(r'boxsize \(x,y,z\)\s*=\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)',
+                                  (enabled/'run.log').read_text())
+                assert start
+                initial_box = np.array(list(map(float,start.groups())))
+            scale = initial_box/box if normalized else np.ones(3)
+            field = np.array([0.,0.,-.00667])*scale*23.06/KCAL_PER_MOL_PER_EV
+            center = np.zeros(3)
+            # The restart summary rounds its initial box to 0.001 Angstrom;
+            # allow only the corresponding voltage rounding uncertainty.
+            tolerance = 5.e-6 if normalized else 2.e-14
+            assert np.max(np.abs(data[:, 6]+(data[:, 2:5]-center)@field)) < tolerance
             print('PASS', name, 'normalized field:', normalized, 'rows:', len(data),
                   'identical energies and DCD numerical records', flush=True)
 

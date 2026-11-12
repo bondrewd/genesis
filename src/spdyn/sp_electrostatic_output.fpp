@@ -167,60 +167,17 @@ contains
     file = output%eleunit
     if (output%out_ele_header) then
       write(file,'(A)',iostat=status) &
-        '#format_version=1', &
-        '#program=GENESIS_SPDYN', &
         '#length_unit=angstrom', &
         '#time_unit=ps', &
-        '#potential_unit=V', &
-        '#field_unit=V/angstrom', &
-        '#charge_unit=elementary_charge', &
-        '#ewald_alpha_unit=1/angstrom', &
-        '#charge_assignment=cardinal_bspline_single_complex_deconvolution', &
-        '#charge_potential_type=ewald_reciprocal_gaussian_smoothed', &
-        '#charge_potential_reference=zero_cell_mean', &
-        '#zero_wavevector=omitted_uniform_neutralizing_background', &
-        '#boundary_convention=three_dimensional_periodic_tin_foil', &
-        '#coordinate_frame=input_coordinates', &
-        '#external_reference=cell_center', &
-        '#external_potential=-dot(effective_field,position-cell_center)', &
-        '#total_potential=charge_potential+external_potential', &
-        '#grid_order=x_outer_y_middle_z_inner_no_duplicate_endpoints', &
-        '#step_time_convention=run_local_engine_step_and_time'
+        '#potential_unit=V'
       call check_electrostatic_io(status)
-      write(file,'(A,A)',iostat=status) '#precision=',precision_char
-      call check_electrostatic_io(status)
-      call comment_real(file, 'coulomb_prefactor', real(ELECOEF,dp))
       call comment_real(file, 'ewald_alpha', real(enefunc%pme_alpha,dp))
       call comment_real(file, 'dielectric', real(enefunc%dielec_const,dp))
-      call comment_integer(file, 'pme_nspline', pme_nspline)
-      call comment_integer(file, 'eleout_period', dynamics%eleout_period)
-      call comment_real(file, 'timestep', real(dynamics%timestep,dp))
-      call comment_real(file, 'initial_time', real(dynamics%initial_time,dp))
-      call comment_real(file, 'kcal_per_mol_per_ev', real(kcal_per_mol_per_ev,dp))
-      call comment_real(file, 'legacy_field_conversion', real(23.06_wp,dp))
-      call comment_integer(file, 'efield_normal', merge(1,0,enefunc%efield_normal))
-      call comment_integer(file, 'use_efield', merge(1,0,enefunc%use_efield))
-      call comment_vector(file, 'configured_field', configured_field)
       write(file,'(A)',iostat=status) &
         'step,time,x,y,z,charge_potential,external_potential,total_potential'
       call check_electrostatic_io(status)
       output%out_ele_header = .false.
     end if
-
-    call comment_integer(file, 'frame_step', dynvars%step)
-    call comment_real(file, 'frame_time', real(dynvars%time,dp))
-    call comment_integer(file, 'grid_dim_x', ngrid(1))
-    call comment_integer(file, 'grid_dim_y', ngrid(2))
-    call comment_integer(file, 'grid_dim_z', ngrid(3))
-    call comment_vector(file, 'grid_origin', origin)
-    call comment_vector(file, 'grid_spacing', spacing)
-    call comment_vector(file, 'cell_vector_a', [box(1),0.0_wp,0.0_wp])
-    call comment_vector(file, 'cell_vector_b', [0.0_wp,box(2),0.0_wp])
-    call comment_vector(file, 'cell_vector_c', [0.0_wp,0.0_wp,box(3)])
-    call comment_vector(file, 'external_reference_position', center)
-    call comment_vector(file, 'effective_field', effective_field)
-    call comment_vector(file, 'field_box_scale', scale)
-    call comment_real(file, 'net_charge', real(sum(global_atoms(4,:)),dp))
 
     do ix = 1, ngrid(1)
       position(1) = origin(1) + real(ix-1,wp)*spacing(1)
@@ -250,24 +207,6 @@ contains
     write(file,'(A,A,A,ES24.16E3)',iostat=status) '#',key,'=',value
     call check_electrostatic_io(status)
   end subroutine comment_real
-
-  subroutine comment_integer(file, key, value)
-    integer, intent(in) :: file, value
-    character(*), intent(in) :: key
-    integer :: status
-    write(file,'(A,A,A,I0)',iostat=status) '#',key,'=',value
-    call check_electrostatic_io(status)
-  end subroutine comment_integer
-
-  subroutine comment_vector(file, key, value)
-    integer, intent(in) :: file
-    character(*), intent(in) :: key
-    real(wp), intent(in) :: value(3)
-    integer :: status
-    write(file,'(A,A,A,ES24.16E3,2(",",ES24.16E3))',iostat=status) &
-      '#',key,'=',value
-    call check_electrostatic_io(status)
-  end subroutine comment_vector
 
   subroutine check_electrostatic_io(status)
     integer, intent(in) :: status

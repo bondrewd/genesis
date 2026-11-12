@@ -79,7 +79,7 @@ General output files
 
   Time is in ps, coordinates in Angstrom, and potentials in volts. Step and
   time match the engine's run-local values; restarted runs reset this
-  chronology. The ``initial_time`` setting is recorded separately.
+  chronology. The ``initial_time`` setting is not added to these values.
 
   ``charge_potential`` is the Gaussian-smoothed reciprocal Ewald potential
   of all atomic charges, as in VMD PMEPot. It includes the instantaneous
@@ -98,13 +98,22 @@ General output files
   external-energy routine's reference by a spatially constant offset.
   Potential differences and fields are unaffected by that gauge choice.
 
-  Fixed metadata is written once in ``#key=value`` comments: units,
-  potential/reference definitions, numerical precision, Ewald factor,
-  dielectric constant, Coulomb prefactor, spline order, configured field,
-  and conversion factors. Each ``#frame_step`` block records the current
-  grid dimensions, grid origin/spacing, cell vectors, reference position,
-  effective field, and net charge. Rows are ordered with x outermost and z
-  innermost. Skip comment lines when reading the CSV.
+  The file starts with exactly five ``#key=value`` comments, followed by
+  the CSV column header (illustrative values and formatting)::
+
+    #length_unit=angstrom
+    #time_unit=ps
+    #potential_unit=V
+    #ewald_alpha=0.34
+    #dielectric=1
+    step,time,x,y,z,charge_potential,external_potential,total_potential
+
+  The Ewald factor is in inverse Angstrom. No comments are repeated between
+  frames: group rows by their ``step`` column. Rows within a frame are
+  ordered with x outermost and z innermost. Grid dimensions and positions
+  can be obtained from each frame's unique x, y, and z coordinates. Skip
+  comment lines when reading the CSV, and retain the simulation input and
+  log for the build precision and other reproduction details.
 
   Arithmetic follows the build precision: mixed and single builds compute
   this map in single precision, while double builds use double precision.
@@ -115,8 +124,14 @@ General output files
   Coordinates use the input-coordinate frame. For axis length L and native
   grid count N, the first point is ``cell_center-floor(N/2)*L/N``. Thus an
   odd grid starts half a spacing above the geometric lower cell boundary.
-  DCD coordinates use the internally centered frame; add the recorded
-  external reference position when comparing a DCD with the CSV.
+  DCD coordinates use the internally centered frame; add the simulation's
+  boundary origin when comparing a DCD with the CSV.
+
+  In NPT simulations, the physical grid positions change with the cell
+  dimensions, even when the grid counts stay fixed. The effective field
+  also changes when ``efield_normal=YES``. Each row uses the current
+  coordinates and field; use those coordinates when averaging frames and
+  interpolate onto a common physical grid if necessary.
 
   The calculation uses separate analysis arrays and does not change forces
   or advance the random-number generator. It gathers atoms and computes a

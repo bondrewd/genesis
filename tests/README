@@ -87,8 +87,11 @@ The integration test covers the six standard FFT backends and automatic
 selection, MPI/thread layouts, native odd-grid origins, field units and
 signs, inactive requested fields, NPT box/field scaling, RESPA cadence,
 invalid inputs, and output-on/off trajectory invariance. The numerical
-tolerances in these two scripts target double precision. CSV metadata
-records the actual precision used by other builds.
+tolerances in these two scripts target double precision. The CSV has only
+five fixed comments (length/time/potential units, Ewald factor, dielectric);
+tests recover frames and grids from the data rows and check them against
+input parameters and engine logs. Build precision is recorded in the
+simulation log, rather than the CSV.
 
 To compare output-disabled behavior against an unchanged control binary:
 

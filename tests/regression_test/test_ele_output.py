@@ -74,6 +74,7 @@ integrator={integrator}
 nsteps={nsteps}
 timestep={timestep}
 iseed=777
+verbose=YES
 eneout_period=1
 crdout_period=2
 nbupdate_period=2
@@ -123,26 +124,53 @@ def run(path, executable, command, content, ranks=1, threads=1,
 
 
 def read_csv(path):
-    fixed, frames = {}, []
-    header = None
-    data = []
+    fixed = {}
+    keys = ['length_unit', 'time_unit', 'potential_unit', 'ewald_alpha', 'dielectric']
     with path.open() as handle:
-        for line in handle:
-            if line.startswith('#'):
-                key, value = line[1:].strip().split('=', 1)
-                if key == 'frame_step':
-                    frames.append({key: value})
-                elif frames:
-                    frames[-1][key] = value
-                else:
-                    fixed[key] = value
-            elif header is None:
-                header = line.strip().split(',')
-            else:
-                data.append(line)
+        for expected in keys:
+            line = handle.readline()
+            assert line.startswith('#'), line
+            key, value = line[1:].strip().split('=', 1)
+            assert key == expected, (key, expected)
+            fixed[key] = value.strip()
+        header = handle.readline().strip().split(',')
+        lines = handle.readlines()
+    assert not any(line.startswith('#') for line in lines)
     assert header == ['step', 'time', 'x', 'y', 'z', 'charge_potential',
                       'external_potential', 'total_potential'], header
-    return fixed, frames, np.loadtxt(data, delimiter=',', ndmin=2)
+    assert fixed['length_unit'] == 'angstrom'
+    assert fixed['time_unit'] == 'ps'
+    assert fixed['potential_unit'] == 'V'
+    data = np.loadtxt(lines, delimiter=',', ndmin=2)
+    assert len(data) > 0
+    starts = np.flatnonzero(np.r_[True, data[1:, 0] != data[:-1, 0]])
+    ends = np.r_[starts[1:], len(data)]
+    frames = [data[start:end] for start, end in zip(starts, ends)]
+    assert len(frames) == len(np.unique(data[:, 0]))
+    return fixed, frames, data
+
+
+def frame_geometry(rows):
+    """Recover a complete Cartesian grid from the recorded coordinates."""
+    axes = [np.unique(rows[:, axis]) for axis in (2, 3, 4)]
+    grid = tuple(len(axis) for axis in axes)
+    assert min(grid) >= 2
+    assert len(rows) == np.prod(grid)
+    corner = np.array([axis[0] for axis in axes])
+    spacing = np.array([(axis[-1]-axis[0])/(len(axis)-1) for axis in axes])
+    for axis, delta in zip(axes, spacing):
+        assert np.max(np.abs(np.diff(axis)-delta)) < 2.e-12
+    positions = np.stack(np.meshgrid(*axes, indexing='ij'), axis=-1).reshape(-1, 3)
+    assert np.array_equal(rows[:, 2:5], positions)
+    return grid, corner, spacing, spacing*np.array(grid)
+
+
+def logged_state(log, step):
+    lines = [line.split()[1:] for line in log.splitlines() if line.startswith('INFO:')]
+    header = lines[0]
+    rows = [line for line in lines[1:] if int(line[0]) == step]
+    assert len(rows) == 1, (step, rows)
+    return dict(zip(header, map(float, rows[0])))
 
 
 def dcd_numeric_records(path):
@@ -161,48 +189,39 @@ def dcd_numeric_records(path):
 
 
 def check_csv(path, field=(0., 0., 0.), expected_steps=(2,),
-              origin=(0., 0., 0.), oracle=True, oracle_budget=3.e-10):
+              origin=(0., 0., 0.), oracle=True, oracle_budget=3.e-10,
+              normalized=False, timestep=1.e-9, expected_grid=(32, 32, 32)):
     fixed, frames, data = read_csv(path)
     assert np.isfinite(data).all()
-    assert [int(f['frame_step']) for f in frames] == list(expected_steps)
-    assert fixed['potential_unit'] == 'V'
-    assert abs(float(fixed['coulomb_prefactor']) - 332.0636930) < 1.e-12
-    previous = 0
-    for frame, step in zip(frames, expected_steps):
-        grid = tuple(int(frame['grid_dim_' + axis]) for axis in 'xyz')
-        count = int(np.prod(grid))
-        rows = data[previous:previous+count]
-        previous += count
-        assert len(rows) == count
+    assert [int(rows[0, 0]) for rows in frames] == list(expected_steps)
+    assert float(fixed['ewald_alpha']) == .25
+    assert float(fixed['dielectric']) == 1.
+    log = path.with_name('run.log').read_text()
+    center = np.array(origin)
+    fields = np.array(field)
+    if np.max(np.abs(fields)) <= 1.e-10:
+        fields = fields*0
+    for rows, step in zip(frames, expected_steps):
         assert np.all(rows[:, 0] == step)
-        assert np.max(np.abs(rows[:, 1] - step * float(fixed['timestep']))) < 1.e-16
-        corner = np.fromstring(frame['grid_origin'], sep=',')
-        spacing = np.fromstring(frame['grid_spacing'], sep=',')
-        cell = np.array([np.fromstring(frame['cell_vector_' + a], sep=',')
-                         for a in 'abc'])
-        assert np.max(np.abs(np.diag(cell) - spacing * grid)) < 1.e-12
-        positions = np.stack(np.meshgrid(*[corner[a] + spacing[a] *
-            np.arange(grid[a]) for a in range(3)], indexing='ij'), axis=-1)
-        assert np.max(np.abs(rows[:, 2:5] - positions.reshape(-1, 3))) < 1.e-12
-        center = np.fromstring(frame['external_reference_position'], sep=',')
-        assert np.max(np.abs(center - origin)) < 1.e-12
+        assert np.max(np.abs(rows[:, 1] - step*timestep)) < 1.e-16
+        grid, corner, spacing, box = frame_geometry(rows)
+        if expected_grid is not None:
+            assert grid == expected_grid, grid
         assert np.max(np.abs(corner - (center - np.array(grid)//2*spacing))) < 1.e-12
-        effective = np.fromstring(frame['effective_field'], sep=',')
-        scale = np.fromstring(frame['field_box_scale'], sep=',')
-        if int(fixed['efield_normal']):
-            assert np.max(np.abs(scale - 48. / np.diag(cell))) < 1.e-12
-        assert np.max(np.abs(effective - np.array(field) * scale *
-                             23.06 / KCAL_PER_MOL_PER_EV)) < 1.e-15
+        state = logged_state(log, step)
+        assert np.max(np.abs(box - [state['BOXX'], state['BOXY'], state['BOXZ']])) < 5.1e-5
+        assert abs(np.prod(box)-state['VOLUME']) < .001
+        scale = 48./box if normalized else np.ones(3)
+        effective = fields*scale*23.06/KCAL_PER_MOL_PER_EV
         expected_ext = -(rows[:, 2:5] - center) @ effective
         assert np.max(np.abs(rows[:, 6] - expected_ext)) < 2.e-14
         assert np.max(np.abs(rows[:, 7] - rows[:, 5] - rows[:, 6])) < 2.e-14
         assert abs(rows[:, 5].mean()) < 1.e-13
         if oracle:
             reference = exact_potential(COORDS, CHARGES, grid, corner,
-                                        np.diag(cell), .25, 1., 3)
+                                        box, .25, 1., 3)
             error = np.max(np.abs(rows[:, 5].reshape(grid) - reference))
             assert error < oracle_budget, error
-    assert previous == len(data)
     return data
 
 
@@ -239,21 +258,17 @@ def main():
         print('PASS physical coordinates and signed external field')
         case = root / 'odd-native-grid'
         run(case, executable, command, control(grid=(48, 48, 45)))
-        check_csv(case / 'potential.csv', oracle_budget=1.e-3)
+        check_csv(case / 'potential.csv', oracle_budget=1.e-3, expected_grid=(48,48,45))
         print('PASS integer half-grid origin for odd native dimensions')
         case = root / 'inactive-configured-field'
         run(case, executable, command, control(field=(0., 0., 1.e-11)))
-        fixed, frames, _ = read_csv(case / 'potential.csv')
-        assert np.fromstring(fixed['configured_field'], sep=',')[2] == 1.e-11
-        assert fixed['use_efield'] == '0'
-        assert np.max(np.abs(np.fromstring(frames[0]['effective_field'], sep=','))) == 0
-        print('PASS configured field retained below activation threshold')
+        data = check_csv(case / 'potential.csv', field=(0.,0.,1.e-11))
+        assert np.max(np.abs(data[:, 6])) == 0
+        print('PASS inactive external field remains zero')
         case = root / 'auto-grid'
         run(case, executable, command, control(grid=None))
-        # Automatic grids need not align with this charge lattice; verify
-        # geometry/field separately from finite-order mesh accuracy.
-        check_csv(case / 'potential.csv', oracle_budget=1.e-3)
-        print('PASS automatic native grid metadata')
+        check_csv(case / 'potential.csv', oracle_budget=1.e-3, expected_grid=None)
+        print('PASS automatic native grid inferred from data rows')
         case = root / 'respa'
         run(case, executable, command, control(integrator='VRES'))
         check_csv(case / 'potential.csv')
@@ -263,7 +278,9 @@ def main():
             run(case, executable, command, control(npt=True, normalized=normalized,
                 field=field, nsteps=4, timestep=.001))
             check_csv(case / 'potential.csv', field=field, expected_steps=(2,4),
-                      oracle=False)
+                      oracle=False, normalized=normalized, timestep=.001)
+            _, frames, _ = read_csv(case / 'potential.csv')
+            assert np.max(np.abs(frames[0][:,2:5]-frames[1][:,2:5])) > 1.e-8
             print('PASS changing NPT geometry and field normalization:', normalized)
         enabled = root / 'enabled'
         disabled = root / 'disabled'
